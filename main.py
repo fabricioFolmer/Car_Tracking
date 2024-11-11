@@ -1,20 +1,31 @@
 import cv2, time, math, numpy as np
 from typing import Literal
 
-# Chat desse código
-# https://chatgpt.com/c/6730c31c-74a8-8008-9348-8dbac3574b65
+# Código por Fabrício Landskren Folmer
 
-# Projeto avançado, semelhante:
-# https://medium.com/@andresberejnoi/computer-vision-with-opencv-building-a-car-counting-system-andres-berejnoi-8bcc29fc256
-# https://www.youtube.com/watch?v=_UGCBud63Eo&ab_channel=Andr%C3%A9sBerejnoi
-# https://github.com/andresberejnoi/OpenCV_Traffic_Counter
+# TODO Retornar apenas a quantidade de carros e remover correção de contagem e gabarito
+# TODO Remover Chat desse código https://chatgpt.com/c/6730c31c-74a8-8008-9348-8dbac3574b65
+# TODO Remover linhas referentes a atualização do background
 
 def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 'debug') -> tuple[int, dict[int, int]]:
+    # Função para contar carros em um vídeo
+    # Parâmetros:
+    # - video_path: caminho do vídeo
+    # - mostrar_na_tela: se True, mostra o vídeo com os contornos e a linha de contagem
+    # - windows: 'debug' para mostrar todas as janelas, 'final' para mostrar apenas o vídeo final
+    # Retorna:
+    # - quantidade de carros contados
     
     def apurar_centro_contornos(lst_contornos: list) -> list:
-        # Retorna uma lista de tuplas contendo os centros dos contornos informados
+        # Apura os centros dos contornos
+        # Parâmetros:
+        # - lst_contornos: lista de contornos
+        # Retorna:
+        # - lista de tuplas contendo os centros dos contornos
+        
         lst = []
 
+        # Loop para cada contorno da lista
         for contour in lst_contornos:
             # Filtra contornos pequenos com base na área
             x, y, w, h = cv2.boundingRect(contour)
@@ -24,12 +35,20 @@ def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 
         return lst
 
     def centro_mais_perto(centro, centros):
-        # Retorna o centro mais próximo do centro informado
+        # Determina o centro mais próximo de um centro informado
+        # Parâmetros:
+        # - centro: tupla contendo as coordenadas (x, y) do centro
+        # - centros: lista de tuplas contendo os centros
+        # Retorna:
+        # - tupla contendo as coordenadas do centro mais próximo
         
         menor_dist = None
         centro_mais_proximo = None
+
+        # Loop para cada centro da lista
         for c in centros:
-            # Determina a distância entre c e centro
+
+            # Determina a distância entre c e centro, usando o teorema de Pitágoras
             dist = math.sqrt((c[0] - centro[0])**2 + (c[1] - centro[1])**2)
             
             # Atualiza o centro_mais_proximo se a distância for a menor encontrada até agora
@@ -48,12 +67,14 @@ def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 
     # - centros_ultimo_frame: lista de tuplas contendo os centros dos contornos do último frame
     # - tipo_linha: tipo de linha de contagem ('horizontal' ou 'vertical')
     # - line_position: posição da linha de contagem
-
-
+    # Retorna:
+    # - True se o contorno cruzou a linha de contagem, False caso contrário
+    
         # Determina o centro do último frame mais próximo do centro informado. Variável 'centro_frame_anterior'
         menor_dist = centro_frame_anterior = None
         for c in centros_ultimo_frame:
-            # Determina a distância entre c e centro
+
+            # Determina a distância entre c e centro, usando o teorema de Pitágoras
             dist = math.sqrt((c[0] - centro[0])**2 + (c[1] - centro[1])**2)
             
             # Atualiza o centro_frame_anterior se a distância for a menor encontrada até agora. 
@@ -67,8 +88,10 @@ def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 
                     centro_frame_anterior = c
 
         # Debug Mostra uma linha entre os centros
-        # cv2.line(dict_frames['frame'], centro, centro_frame_anterior, (0, 255, 255), 2)
+        if mostrar_na_tela is True and windows == 'debug':
+            cv2.line(dict_frames['frame'], centro, centro_frame_anterior, (0, 255, 255), 2)
             
+        # Se não encontrar um centro do último frame próximo ao centro informado, retorna False
         if centro_frame_anterior is None:
             return False
 
@@ -83,12 +106,15 @@ def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 
                 centro[0] < line_position and centro_frame_anterior[0] > line_position) or (
                 centro[0] == line_position):
                 return True
+        
+        # Se não cruzar a linha de contagem, retorna False
         return False
 
-    # Configuração das janelas
+    # Verifica se o argumento 'windows' é válido
     if windows not in ['debug', 'final']:
         raise ValueError("Argumento 'windows' deve ser 'debug' ou 'final'")
     else:
+        # Define quais frames serão mostrados na tela
         if windows == 'debug':
             frames = ['frame', 'gray_frame', 'background', 'frame_delta', 'fg_mask']
         else:
@@ -110,21 +136,21 @@ def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 
     # Loop através de cada frame no vídeo
     while cap.isOpened():
         
-        # Mostra na tela apenas após o minuto X
+        # Mostra na tela apenas após o minuto X TODO Remover
       #  if ((cap.get(cv2.CAP_PROP_POS_MSEC) / 1000 / 60) + 1) >= 5.34:
       #      mostrar_na_tela = True
       #      time.sleep(.2)
 
-        # Erros:
+        # Erros: TODO Remover
         # 4.17: 2 carros contam como 1
         # Minuto 5: Embora a contagem total está correta, vários carros foram mesclados como um
 
-
+        # Lê o próximo frame
         ret, frame = cap.read()
         if not ret:
             break
         
-        # Converte o frame atual para escala de cinza
+        # Converte o frame atual para escala de cinza. 4x para reduzir ruído com maior efetividade
         gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         gray_frame = cv2.GaussianBlur(gray_frame, (21, 21), 0)  # Aplica suavização para reduzir ruído
         gray_frame = cv2.GaussianBlur(gray_frame, (21, 21), 0)  # Aplica suavização para reduzir ruído
@@ -148,7 +174,7 @@ def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 
         # Aplica limiar para obter uma imagem binária, onde áreas de movimento são destacadas
         _, fg_mask = cv2.threshold(frame_delta, 25, 255, cv2.THRESH_BINARY)
         
-        # Aplica operações morfológicas para preencher buracos e remover ruídos
+        # Aplica operações morfológicas para preencher buracos e remover ruídos. 4x para remover ruídos com maior efetividade
         fg_mask = cv2.dilate(fg_mask, None)
         fg_mask = cv2.dilate(fg_mask, None)
         fg_mask = cv2.dilate(fg_mask, None)
@@ -157,12 +183,13 @@ def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 
         # Encontra contornos
         contours, _ = cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        # Dicionário para armazenar os frames para exibição
+        # Dicionário para armazenar os objeto dos frames para exibição
         dict_frames = {'frame': frame, 'gray_frame': gray_frame, 'background': cv2.convertScaleAbs(background), 'frame_delta': frame_delta, 'fg_mask': fg_mask}
 
-        # Processa cada contorno
+        # Processa cada contorno do frame
         centros_frame_atual = apurar_centro_contornos(contours)
         for contour in contours:
+
             # Filtra contornos pequenos com base na área
             x, y, w, h = cv2.boundingRect(contour)
             if w >= largura_minima and h >= largura_maxima:
@@ -174,33 +201,37 @@ def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 
                 
                 # Determina se o carro cruzou a linha vertical
                 centro = (x + w // 2, y + h // 2)
-                
                 if passou_pela_linha(centro, w, centros_frame_atual, centros_ultimo_frame, 'vertical', pos_da_linha) is True:
-                    minuto_atual = int(cap.get(cv2.CAP_PROP_POS_MSEC) / 1000 / 60) + 1
-                    if minuto_atual not in dict_resultados:
-                        dict_resultados[minuto_atual] = 1
-                    else:
-                        dict_resultados[minuto_atual] += 1
+                    minuto_atual = int(cap.get(cv2.CAP_PROP_POS_MSEC) / 1000 / 60) + 1 # TODO Remover
+                    if minuto_atual not in dict_resultados: # TODO Remover
+                        dict_resultados[minuto_atual] = 1 # TODO Remover
+                    else: # TODO Remover
+                        dict_resultados[minuto_atual] += 1 # TODO Remover
                     qtd_carros += 1
-                    # Debug print(f'{qtd_carros}:  {cap.get(cv2.CAP_PROP_POS_MSEC) / 1000 / 60 + 1}')
+                    # Debug print(f'{qtd_carros}:  {cap.get(cv2.CAP_PROP_POS_MSEC) / 1000 / 60 + 1}') # TODO Remover
 
+        # Atualiza os centros do último frame, para comparar com o próximo frame
         centros_ultimo_frame = centros_frame_atual.copy()
 
+        # Configurações da janela de exibição
         if mostrar_na_tela is True:
+
             # Exibe a linha de contagem vertical
             cv2.line(frame, (pos_da_linha, 0), (pos_da_linha, frame.shape[0]), (0, 0, 255), 2)
 
             # Exibe o frame com a contagem de carros
             for frm in frames:
                 cv2.putText(dict_frames[frm], f"Carros Contados: {qtd_carros}", (10, 60), cv2.FONT_HERSHEY_COMPLEX, 1, (255, 255, 255), 2)
-                cv2.putText(dict_frames[frm], f"Contornos: {len(contours)}", (10, 100), cv2.FONT_HERSHEY_COMPLEX, 1, (255, 255, 255), 2)
+                cv2.putText(dict_frames[frm], f"Contornos processados no frame: {len(contours)}", (10, 100), cv2.FONT_HERSHEY_COMPLEX, .5, (255, 255, 255), 1)
                 cv2.imshow(frm, dict_frames[frm])
 
-            # Encerra o loop se a tecla 'q' for pressionada ou se uma janela for fechada
+            # Encerra o loop se a tecla 'q' for pressionada ou se a janela principal for fechada
             if cv2.waitKey(30) & 0xFF == ord('q') or cv2.getWindowProperty("frame", cv2.WND_PROP_VISIBLE) < 1:
                 break
+
+            # Exibe o tempo atual do vídeo se a tecla 't' for pressionada
             if cv2.waitKey(30) & 0xFF == ord('t'):
-                print(cap.get(cv2.CAP_PROP_POS_MSEC) / 1000 / 60) + 1
+                print(cap.get(cv2.CAP_PROP_POS_MSEC) / 1000 / 60)
             
     # Libera os recursos
     cap.release()
@@ -209,10 +240,10 @@ def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 
     return qtd_carros, dict_resultados
 
 
+# Exemplo de uso
+qtd, dict_resultados = contar_carros(video_path='Camera_Footage.mp4', mostrar_na_tela=True, windows='debug')
 
-# Exemplos de uso
-qtd, dict_resultados = contar_carros(video_path='Camera_Footage.mp4', mostrar_na_tela=False, windows='debug')
-
+# TODO Remover a partir daqui
 # Exibe o resultado final da contagem
 print(f"Total de carros contados: {qtd}. Eram esperados 39.")
 
@@ -224,7 +255,6 @@ for minuto, qtd in dict_resultados.items():
             print(f"Erro no minuto {minuto}: {qtd} carros. Gabarito: {gabarito[minuto]}")
     else:
         print(f"Erro no minuto {minuto}: {qtd} carros. Gabarito: 0")
-
 
 
 #   Gabarito:
