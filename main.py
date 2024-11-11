@@ -132,9 +132,11 @@ def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 
             background = gray_frame.astype("float")
             continue
         
-        # Atualiza o background gradualmente com o frame atual
-        # TODO Evoluir para desconsiderar áreas de movimento lentas, como background
-        cv2.accumulateWeighted(gray_frame, background, alpha)
+        # Atualiza o background gradualmente com o frame atual      # TODO Evoluir para desconsiderar áreas de movimento lentas, como background
+        # NEW Cria uma máscara binária para áreas de movimento (usada para evitar atualização com áreas móveis)
+        #_, movement_mask = cv2.threshold(frame_delta, 25, 1, cv2.THRESH_BINARY)
+        #inverse_mask = cv2.bitwise_not(movement_mask)  # Máscara inversa para áreas estáticas (background)
+        #cv2.accumulateWeighted(gray_frame, background, alpha) # , mask=inverse_mask)
         
         # Calcula a diferença entre o background atualizado e o frame atual
         frame_delta = cv2.absdiff(gray_frame, cv2.convertScaleAbs(background))
@@ -149,7 +151,7 @@ def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 
         fg_mask = cv2.dilate(fg_mask, None)
 
         # Encontra contornos
-        contours, _ = cv2.findContours(fg_mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         # Dicionário para armazenar os frames para exibição
         dict_frames = {'frame': frame, 'gray_frame': gray_frame, 'background': cv2.convertScaleAbs(background), 'frame_delta': frame_delta, 'fg_mask': fg_mask}
@@ -203,7 +205,8 @@ def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 
     return qtd_carros, dict_resultados
 
 # Exemplos de uso
-qtd, dict_resultados = contar_carros(video_path='Camera_Footage.mp4', mostrar_na_tela=False, windows='debug')
+qtd, dict_resultados = contar_carros(video_path='Camera_Footage_Short.mp4', mostrar_na_tela=True, windows='debug')
+print(f'Quantidade de carros contados: {qtd} de 5 reais'); exit()
 
 # Exibe o resultado final da contagem
 print(f"Total de carros contados: {qtd}. Eram esperados 39.\n")
