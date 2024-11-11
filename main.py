@@ -66,8 +66,8 @@ def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 
                     menor_dist = dist
                     centro_frame_anterior = c
 
-        # TODO Debug Mostra uma linha entre pontos para debug
-        cv2.line(dict_frames['frame'], centro, centro_frame_anterior, (0, 255, 255), 2)
+        # Debug Mostra uma linha entre os centros
+        # cv2.line(dict_frames['frame'], centro, centro_frame_anterior, (0, 255, 255), 2)
             
         if centro_frame_anterior is None:
             return False
@@ -98,7 +98,6 @@ def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 
     qtd_carros = 0              # Contador de carros
     largura_minima = 40         # Largura mínima do contorno detectado para contar como carro
     largura_maxima = 40         # Altura mínima do contorno detectado para contar como carro
-    # line_position = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) // 2)  # Posição da linha vertical de contagem (meio da tela)
     pos_da_linha = 430          # Posição da linha vertical de contagem (local mais visível da rua)
     centros_ultimo_frame = []   # Lista de centros dos contornos do último frame. Usado para determinar se um carro cruzou a linha de contagem
     dict_resultados = {}        # Dicionário para armazenar os resultados da contagem a cada minuto
@@ -112,9 +111,14 @@ def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 
     while cap.isOpened():
         
         # Mostra na tela apenas após o minuto X
-        if ((cap.get(cv2.CAP_PROP_POS_MSEC) / 1000 / 60) + 1) >= 5.34:
-            mostrar_na_tela = True
+      #  if ((cap.get(cv2.CAP_PROP_POS_MSEC) / 1000 / 60) + 1) >= 5.34:
+      #      mostrar_na_tela = True
       #      time.sleep(.2)
+
+        # Erros:
+        # 4.17: 2 carros contam como 1
+        # Minuto 5: Embora a contagem total está correta, vários carros foram mesclados como um
+
 
         ret, frame = cap.read()
         if not ret:
@@ -136,7 +140,7 @@ def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 
         # NEW Cria uma máscara binária para áreas de movimento (usada para evitar atualização com áreas móveis)
         #_, movement_mask = cv2.threshold(frame_delta, 25, 1, cv2.THRESH_BINARY)
         #inverse_mask = cv2.bitwise_not(movement_mask)  # Máscara inversa para áreas estáticas (background)
-        #cv2.accumulateWeighted(gray_frame, background, alpha) # , mask=inverse_mask)
+        # cv2.accumulateWeighted(gray_frame, background, alpha) # , mask=inverse_mask)
         
         # Calcula a diferença entre o background atualizado e o frame atual
         frame_delta = cv2.absdiff(gray_frame, cv2.convertScaleAbs(background))
@@ -178,7 +182,7 @@ def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 
                     else:
                         dict_resultados[minuto_atual] += 1
                     qtd_carros += 1
-                   # TODO Debug print(f'{qtd_carros}:  {cap.get(cv2.CAP_PROP_POS_MSEC) / 1000 / 60 + 1}')
+                    # Debug print(f'{qtd_carros}:  {cap.get(cv2.CAP_PROP_POS_MSEC) / 1000 / 60 + 1}')
 
         centros_ultimo_frame = centros_frame_atual.copy()
 
@@ -204,12 +208,13 @@ def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 
 
     return qtd_carros, dict_resultados
 
+
+
 # Exemplos de uso
-qtd, dict_resultados = contar_carros(video_path='Camera_Footage_Short.mp4', mostrar_na_tela=True, windows='debug')
-print(f'Quantidade de carros contados: {qtd} de 5 reais'); exit()
+qtd, dict_resultados = contar_carros(video_path='Camera_Footage.mp4', mostrar_na_tela=False, windows='debug')
 
 # Exibe o resultado final da contagem
-print(f"Total de carros contados: {qtd}. Eram esperados 39.\n")
+print(f"Total de carros contados: {qtd}. Eram esperados 39.")
 
 # Checagem do gabarito
 gabarito = {1: 8, 2: 7, 3: 3, 4: 13, 5: 6}
@@ -219,7 +224,6 @@ for minuto, qtd in dict_resultados.items():
             print(f"Erro no minuto {minuto}: {qtd} carros. Gabarito: {gabarito[minuto]}")
     else:
         print(f"Erro no minuto {minuto}: {qtd} carros. Gabarito: 0")
-
 
 
 
