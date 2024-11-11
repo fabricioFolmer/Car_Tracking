@@ -11,12 +11,40 @@ from typing import Literal
 
 def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 'debug') -> tuple[int, dict[int, int]]:
     
+    def apurar_centro_contornos(lst_contornos: list) -> list:
+        # Retorna uma lista de tuplas contendo os centros dos contornos informados
+        lst = []
 
-    def passou_pela_linha(centro, area, centros_ultimo_frame, tipo_linha: Literal['horizontal', 'vertical'], line_position: int) -> bool:
+        for contour in lst_contornos:
+            # Filtra contornos pequenos com base na área
+            x, y, w, h = cv2.boundingRect(contour)
+            if w >= largura_minima and h >= largura_maxima:
+                lst.append((x + w // 2, y + h // 2))
+
+        return lst
+
+    def centro_mais_perto(centro, centros):
+        # Retorna o centro mais próximo do centro informado
+        
+        menor_dist = None
+        centro_mais_proximo = None
+        for c in centros:
+            # Determina a distância entre c e centro
+            dist = math.sqrt((c[0] - centro[0])**2 + (c[1] - centro[1])**2)
+            
+            # Atualiza o centro_mais_proximo se a distância for a menor encontrada até agora
+            if menor_dist is None or dist < menor_dist:
+                menor_dist = dist
+                centro_mais_proximo = c
+        
+        return centro_mais_proximo
+
+    def passou_pela_linha(centro, dist_maxima, centros_frame_atual, centros_ultimo_frame, tipo_linha: Literal['horizontal', 'vertical'], line_position: int) -> bool:
     # Verifica se o centro de um contorno cruzou a linha de contagem
     # Parâmetros:
     # - centro: tupla contendo as coordenadas (x, y) do centro do contorno
-    # - area: área do contorno
+    # - dist_maxima: distância máxima entre o centro informado e o centro do último frame para considerar que é o mesmo contorno
+    # - centros_frame_atual: lista de tuplas contendo os centros dos contornos do frame atual
     # - centros_ultimo_frame: lista de tuplas contendo os centros dos contornos do último frame
     # - tipo_linha: tipo de linha de contagem ('horizontal' ou 'vertical')
     # - line_position: posição da linha de contagem
@@ -30,10 +58,17 @@ def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 
             
             # Atualiza o centro_frame_anterior se a distância for a menor encontrada até agora. 
             # Desconsiderando casos onde a distância é maior do que a área do contorno atual
-            if (menor_dist is None or dist < menor_dist) and dist < area:
-                menor_dist = dist
-                centro_frame_anterior = c
+            if (menor_dist is None or dist < menor_dist) and dist < dist_maxima:
+                
+                # Verifica se o centro anterior encontrado possui um outro centro mais próximo no novo frame.
+                # Se ele possui, quer dizer que o centro informado é um novo contorno, e não o mesmo que o anterior, e por isso deve ser ignorado
+                if centro_mais_perto(c, centros_frame_atual) == centro:
+                    menor_dist = dist
+                    centro_frame_anterior = c
 
+        # TODO Debug Mostra uma linha entre pontos para debug
+        cv2.line(dict_frames['frame'], centro, centro_frame_anterior, (0, 255, 255), 2)
+            
         if centro_frame_anterior is None:
             return False
 
@@ -59,37 +94,28 @@ def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 
         else:
             frames = ['frame']
 
+    # Define variáveis
+    qtd_carros = 0              # Contador de carros
+    largura_minima = 40         # Largura mínima do contorno detectado para contar como carro
+    largura_maxima = 40         # Altura mínima do contorno detectado para contar como carro
+    # line_position = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) // 2)  # Posição da linha vertical de contagem (meio da tela)
+    pos_da_linha = 430          # Posição da linha vertical de contagem (local mais visível da rua)
+    centros_ultimo_frame = []   # Lista de centros dos contornos do último frame. Usado para determinar se um carro cruzou a linha de contagem
+    dict_resultados = {}        # Dicionário para armazenar os resultados da contagem a cada minuto
+    background = None           # Inicializa o background como None
+    alpha = 0.01                # Taxa de atualização do background (fator de suavização)
+
     # Carrega o vídeo
     cap = cv2.VideoCapture(video_path)
-
-    # Define variáveis
-    qtd_carros = 0
-    min_contour_width = 40  # Largura mínima do contorno detectado para contar como carro
-    min_contour_height = 40 # Altura mínima do contorno detectado para contar como carro
-    # line_position = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) // 2)  # Posição da linha vertical de contagem (meio da tela)
-    line_position = 430  # Posição da linha vertical de contagem (local mais visível da rua)
-    centros_ultimo_frame = [] # Lista de centros dos contornos do último frame. Usado para determinar se um carro cruzou a linha de contagem
-    dict_resultados = {}  # Dicionário para armazenar os resultados da contagem a cada minuto
-
- #    LARGE_OBJECT_THRESHOLD = 5000  # Adjust this value based on your specific case
-
-
-    # Inicializa o background (imagem de fundo) como None
-    background = None
-    alpha = 0.01  # Taxa de atualização do background (fator de suavização)
 
     # Loop através de cada frame no vídeo
     while cap.isOpened():
         
         # Mostra na tela apenas após o minuto X
-        if ((cap.get(cv2.CAP_PROP_POS_MSEC) / 1000 / 60) + 1) >= 2.9:
-            #mostrar_na_tela = True
-            time.sleep(0)
+        if ((cap.get(cv2.CAP_PROP_POS_MSEC) / 1000 / 60) + 1) >= 5.34:
+            mostrar_na_tela = True
+      #      time.sleep(.2)
 
-        # ERROS: (não são todos)
-        # 2.90 Caminhão conta 2x
-        # 4.15 2 Carros contam como 3. # TODO Para corrigir, considerar a direção de movimento do carro na def de passou_pela_linha, para buscar apenas contornos 'atras' do carro
-        
         ret, frame = cap.read()
         if not ret:
             break
@@ -107,6 +133,7 @@ def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 
             continue
         
         # Atualiza o background gradualmente com o frame atual
+        # TODO Evoluir para desconsiderar áreas de movimento lentas, como background
         cv2.accumulateWeighted(gray_frame, background, alpha)
         
         # Calcula a diferença entre o background atualizado e o frame atual
@@ -128,11 +155,11 @@ def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 
         dict_frames = {'frame': frame, 'gray_frame': gray_frame, 'background': cv2.convertScaleAbs(background), 'frame_delta': frame_delta, 'fg_mask': fg_mask}
 
         # Processa cada contorno
-        centros_frame_atual = []
+        centros_frame_atual = apurar_centro_contornos(contours)
         for contour in contours:
             # Filtra contornos pequenos com base na área
             x, y, w, h = cv2.boundingRect(contour)
-            if w >= min_contour_width and h >= min_contour_height:
+            if w >= largura_minima and h >= largura_maxima:
 
                 # Desenha um retângulo em torno dos contornos detectados, e um ponto no centro
                 for frm in frames:
@@ -142,20 +169,20 @@ def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 
                 # Determina se o carro cruzou a linha vertical
                 centro = (x + w // 2, y + h // 2)
                 
-                if passou_pela_linha(centro, w*h, centros_ultimo_frame, 'vertical', line_position) is True:
+                if passou_pela_linha(centro, w, centros_frame_atual, centros_ultimo_frame, 'vertical', pos_da_linha) is True:
                     minuto_atual = int(cap.get(cv2.CAP_PROP_POS_MSEC) / 1000 / 60) + 1
                     if minuto_atual not in dict_resultados:
                         dict_resultados[minuto_atual] = 1
                     else:
                         dict_resultados[minuto_atual] += 1
                     qtd_carros += 1
-                centros_frame_atual.append(centro)
+                   # TODO Debug print(f'{qtd_carros}:  {cap.get(cv2.CAP_PROP_POS_MSEC) / 1000 / 60 + 1}')
 
         centros_ultimo_frame = centros_frame_atual.copy()
 
         if mostrar_na_tela is True:
             # Exibe a linha de contagem vertical
-            cv2.line(frame, (line_position, 0), (line_position, frame.shape[0]), (0, 0, 255), 2)
+            cv2.line(frame, (pos_da_linha, 0), (pos_da_linha, frame.shape[0]), (0, 0, 255), 2)
 
             # Exibe o frame com a contagem de carros
             for frm in frames:
@@ -166,7 +193,6 @@ def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 
             # Encerra o loop se a tecla 'q' for pressionada ou se uma janela for fechada
             if cv2.waitKey(30) & 0xFF == ord('q') or cv2.getWindowProperty("frame", cv2.WND_PROP_VISIBLE) < 1:
                 break
-            
             if cv2.waitKey(30) & 0xFF == ord('t'):
                 print(cap.get(cv2.CAP_PROP_POS_MSEC) / 1000 / 60) + 1
             
@@ -177,15 +203,13 @@ def contar_carros(video_path: str, mostrar_na_tela: bool = True, windows: str = 
     return qtd_carros, dict_resultados
 
 # Exemplos de uso
-# qtd = contar_carros(video_path='Camera_Footage.mp4', mostrar_na_tela=False)
 qtd, dict_resultados = contar_carros(video_path='Camera_Footage.mp4', mostrar_na_tela=False, windows='debug')
-#qtd = contar_carros(video_path='Camera_Footage.mp4', mostrar_na_tela=True, windows='final')
 
 # Exibe o resultado final da contagem
-print(f"Total de carros contados: {qtd}. Eram esperados 38.\n")
+print(f"Total de carros contados: {qtd}. Eram esperados 39.\n")
 
 # Checagem do gabarito
-gabarito = {1: 8, 2: 6, 3: 3, 4: 13, 5: 6}
+gabarito = {1: 8, 2: 7, 3: 3, 4: 13, 5: 6}
 for minuto, qtd in dict_resultados.items():
     if minuto in gabarito:
         if qtd != gabarito[minuto]:
@@ -194,16 +218,16 @@ for minuto, qtd in dict_resultados.items():
         print(f"Erro no minuto {minuto}: {qtd} carros. Gabarito: 0")
 
 
-# Erros:
-# 24:10 Caminhao 3x
-# 25:20 VARIOS ERROS
 
+
+#   Gabarito:
 
 # Minuto 1:
 #   8 Carros
 # Minuto 2:
 #   5 Carros
 #   1 Caminhão
+#   1 Moto
 # Minuto 3:
 #   1 Bike
 #   2 Carro
@@ -212,5 +236,5 @@ for minuto, qtd in dict_resultados.items():
 # Minuto 5:
 #   6 Carro
 
-# Total: 36 Carros, 1 Bike, 1 Caminhão
-# Total: 38
+# Total: 36 Carros, 1 moto, 1 Bike, 1 Caminhão
+# Total: 39
